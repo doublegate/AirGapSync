@@ -3,7 +3,7 @@
 //! This module provides JSON Schema generation for the TOML configuration
 //! to enable programmatic validation and documentation.
 
-use schemars::{JsonSchema, schema_for};
+use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -11,14 +11,18 @@ use thiserror::Error;
 
 use crate::config::*;
 
+/// Schema generation error types
 #[derive(Debug, Error)]
 pub enum SchemaError {
+    /// Failed to generate JSON schema
     #[error("Failed to generate schema: {0}")]
     GenerationError(String),
-    
+
+    /// Failed to write schema to file
     #[error("Failed to write schema file: {0}")]
     WriteError(#[from] std::io::Error),
-    
+
+    /// Failed to serialize schema to JSON
     #[error("Failed to serialize schema: {0}")]
     SerializationError(#[from] serde_json::Error),
 }
@@ -41,21 +45,19 @@ pub fn write_schema_to_file(path: &Path) -> Result<(), SchemaError> {
 /// Validate a configuration against the schema
 pub fn validate_config_json(config_json: &Value) -> Result<(), SchemaError> {
     use jsonschema::JSONSchema;
-    
+
     let schema = generate_config_schema()?;
-    let compiled = JSONSchema::compile(&schema)
-        .map_err(|e| SchemaError::GenerationError(e.to_string()))?;
-    
+    let compiled =
+        JSONSchema::compile(&schema).map_err(|e| SchemaError::GenerationError(e.to_string()))?;
+
     let result = compiled.validate(config_json);
     if let Err(errors) = result {
         let error_messages: Vec<String> = errors
             .map(|e| format!("{}: {}", e.instance_path, e))
             .collect();
-        return Err(SchemaError::GenerationError(
-            error_messages.join("; ")
-        ));
+        return Err(SchemaError::GenerationError(error_messages.join("; ")));
     }
-    
+
     Ok(())
 }
 
@@ -78,7 +80,7 @@ pub fn example_config_json() -> Value {
             "name": "Secure Backup USB",
             "mount_point": "/Volumes/SecureUSB",
             "encryption": {
-                "algorithm": "aes-256-gcm",
+                "algorithm": "aes256-gcm",
                 "key_derivation": "pbkdf2",
                 "iterations": 100000
             }
@@ -119,11 +121,84 @@ pub fn example_config_json() -> Value {
 
 /// Configuration documentation structure
 pub struct ConfigDoc {
+    /// Field path (e.g. "general.verbose")
     pub field: String,
+    /// Human-readable description
     pub description: String,
+    /// Data type (boolean, string, integer, etc.)
     pub field_type: String,
+    /// Default value if any
     pub default: Option<String>,
+    /// Whether field is required
     pub required: bool,
+}
+
+/// Generate schema validation rules using JsonSchema
+pub fn create_schema_validator() -> Result<jsonschema::JSONSchema, SchemaError> {
+    let schema = generate_config_schema()?;
+    let compiled = jsonschema::JSONSchema::compile(&schema)
+        .map_err(|e| SchemaError::GenerationError(e.to_string()))?;
+    Ok(compiled)
+}
+
+/// Generate enhanced schema with custom validation rules
+pub fn generate_enhanced_schema() -> Result<Value, SchemaError> {
+    // Generate the basic schema first
+    let basic_schema = generate_config_schema()?;
+    
+    // Create enhanced schema by adding custom validation rules
+    let mut enhanced = basic_schema.clone();
+    
+    // Add device ID pattern validation to the schema JSON directly
+    if let Some(properties) = enhanced.get_mut("properties") {
+        if let Some(device_prop) = properties.get_mut("device") {
+            if let Some(items) = device_prop.get_mut("items") {
+                if let Some(device_properties) = items.get_mut("properties") {
+                    if let Some(id_prop) = device_properties.get_mut("id") {
+                        if let Some(id_obj) = id_prop.as_object_mut() {
+                            id_obj.insert("pattern".to_string(), 
+                                         serde_json::Value::String("^[A-Z0-9]{3,20}$".to_string()));
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add path format validation for source.path
+        if let Some(source_prop) = properties.get_mut("source") {
+            if let Some(source_properties) = source_prop.get_mut("properties") {
+                if let Some(path_prop) = source_properties.get_mut("path") {
+                    if let Some(path_obj) = path_prop.as_object_mut() {
+                        path_obj.insert("format".to_string(), 
+                                       serde_json::Value::String("path".to_string()));
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(enhanced)
+}
+
+/// Generate schema for a specific type using JsonSchema trait
+pub fn generate_type_schema<T: JsonSchema>() -> Value {
+    let schema = schemars::schema_for!(T);
+    serde_json::to_value(&schema).unwrap_or_default()
+}
+
+/// Get JSON schema properties for introspection
+pub fn get_schema_properties(schema: &Value) -> Vec<String> {
+    let mut properties = Vec::new();
+    
+    if let Some(props) = schema.get("properties") {
+        if let Some(obj) = props.as_object() {
+            for key in obj.keys() {
+                properties.push(key.clone());
+            }
+        }
+    }
+    
+    properties
 }
 
 /// Generate documentation for configuration fields
@@ -208,7 +283,7 @@ pub fn generate_markdown_docs() -> String {
     doc.push_str("## Configuration Fields\n\n");
     doc.push_str("| Field | Type | Required | Default | Description |\n");
     doc.push_str("|-------|------|----------|---------|-------------|\n");
-    
+
     for field_doc in generate_config_docs() {
         doc.push_str(&format!(
             "| `{}` | {} | {} | {} | {} |\n",
@@ -219,18 +294,18 @@ pub fn generate_markdown_docs() -> String {
             field_doc.description
         ));
     }
-    
+
     doc.push_str("\n## Example Configuration\n\n```toml\n");
-    doc.push_str(&include_str!("../../config.example.toml"));
+    doc.push_str(include_str!("../../config.example.toml"));
     doc.push_str("```\n");
-    
+
     doc
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_schema_generation() {
         let schema = generate_config_schema().unwrap();
@@ -238,14 +313,18 @@ mod tests {
         assert!(schema.get("title").is_some());
         assert!(schema.get("properties").is_some());
     }
-    
+
     #[test]
     fn test_example_validation() {
         let example = example_config_json();
         let result = validate_config_json(&example);
-        assert!(result.is_ok());
+        if let Err(e) = &result {
+            eprintln!("Validation error: {}", e);
+            eprintln!("Example config: {}", serde_json::to_string_pretty(&example).unwrap());
+        }
+        assert!(result.is_ok(), "Validation failed: {:?}", result.err());
     }
-    
+
     #[test]
     fn test_invalid_config_validation() {
         let invalid = serde_json::json!({
@@ -255,7 +334,7 @@ mod tests {
             },
             "device": []  // Empty device array
         });
-        
+
         let result = validate_config_json(&invalid);
         assert!(result.is_err());
     }

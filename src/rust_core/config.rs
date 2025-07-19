@@ -1,25 +1,30 @@
 //! Configuration management for AirGapSync
-//! 
+//!
 //! This module defines the TOML configuration schema and provides
 //! serialization/deserialization support with validation.
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
+/// Configuration error types
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    /// Failed to read configuration file
     #[error("Failed to read configuration file: {0}")]
     ReadError(#[from] std::io::Error),
-    
+
+    /// Failed to parse TOML configuration
     #[error("Failed to parse TOML: {0}")]
     ParseError(#[from] toml::de::Error),
-    
+
+    /// Configuration validation failed
     #[error("Invalid configuration: {0}")]
     ValidationError(String),
-    
+
+    /// Failed to serialize configuration to TOML
     #[error("Failed to serialize configuration: {0}")]
     SerializationError(#[from] toml::ser::Error),
 }
@@ -30,45 +35,45 @@ pub struct Config {
     /// General settings
     #[serde(default)]
     pub general: GeneralConfig,
-    
+
     /// Source directory configuration
     pub source: SourceConfig,
-    
+
     /// Device configurations (can have multiple)
     pub device: Vec<DeviceConfig>,
-    
+
     /// Retention and cleanup policies
     #[serde(default)]
     pub policy: PolicyConfig,
-    
+
     /// Security settings
     #[serde(default)]
     pub security: SecurityConfig,
-    
+
     /// Schedule settings (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schedule: Option<ScheduleConfig>,
-    
+
     /// Notification preferences
     #[serde(default)]
     pub notifications: NotificationConfig,
-    
+
     /// Advanced settings
     #[serde(default)]
     pub advanced: AdvancedConfig,
 }
 
 /// General application settings
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct GeneralConfig {
     /// Enable verbose logging
     #[serde(default = "default_false")]
     pub verbose: bool,
-    
+
     /// Log file location (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log_file: Option<PathBuf>,
-    
+
     /// Number of worker threads (0 = auto-detect)
     #[serde(default)]
     pub threads: usize,
@@ -79,15 +84,15 @@ pub struct GeneralConfig {
 pub struct SourceConfig {
     /// Source directory path
     pub path: PathBuf,
-    
+
     /// Exclude patterns (gitignore syntax)
     #[serde(default)]
     pub exclude: Vec<String>,
-    
+
     /// Follow symbolic links
     #[serde(default = "default_false")]
     pub follow_symlinks: bool,
-    
+
     /// Include hidden files
     #[serde(default = "default_false")]
     pub include_hidden: bool,
@@ -98,13 +103,13 @@ pub struct SourceConfig {
 pub struct DeviceConfig {
     /// Unique device identifier
     pub id: String,
-    
+
     /// Human-readable device name
     pub name: String,
-    
+
     /// Mount point path
     pub mount_point: PathBuf,
-    
+
     /// Device-specific encryption settings
     #[serde(default)]
     pub encryption: EncryptionConfig,
@@ -116,11 +121,11 @@ pub struct EncryptionConfig {
     /// Encryption algorithm
     #[serde(default = "default_encryption_algorithm")]
     pub algorithm: EncryptionAlgorithm,
-    
+
     /// Key derivation function
     #[serde(default = "default_key_derivation")]
     pub key_derivation: KeyDerivation,
-    
+
     /// PBKDF2 iterations (if using PBKDF2)
     #[serde(default = "default_pbkdf2_iterations")]
     pub iterations: u32,
@@ -152,31 +157,31 @@ pub struct PolicyConfig {
     /// Number of snapshots to retain
     #[serde(default = "default_retain_snapshots")]
     pub retain_snapshots: u32,
-    
+
     /// Keep snapshots for N days
     #[serde(default = "default_retain_days")]
     pub retain_days: u32,
-    
+
     /// Run garbage collection every N hours
     #[serde(default = "default_gc_interval_hours")]
     pub gc_interval_hours: u32,
-    
+
     /// Verify data after writing
     #[serde(default = "default_true")]
     pub verify_after_write: bool,
-    
+
     /// Compression level (0-9, 0=none)
     #[serde(default = "default_compression_level")]
     pub compression_level: u8,
-    
+
     /// Chunk size in MB
     #[serde(default = "default_chunk_size_mb")]
     pub chunk_size_mb: u32,
-    
+
     /// Number of files to process in parallel
     #[serde(default = "default_parallel_files")]
     pub parallel_files: u32,
-    
+
     /// I/O buffer size in KB
     #[serde(default = "default_buffer_size_kb")]
     pub buffer_size_kb: u32,
@@ -188,15 +193,15 @@ pub struct SecurityConfig {
     /// Key rotation interval in days
     #[serde(default = "default_key_rotation_days")]
     pub key_rotation_days: u32,
-    
+
     /// Require macOS authentication for operations
     #[serde(default = "default_true")]
     pub require_authentication: bool,
-    
+
     /// Audit logging level
     #[serde(default = "default_audit_level")]
     pub audit_level: AuditLevel,
-    
+
     /// Audit log retention in days
     #[serde(default = "default_audit_retention_days")]
     pub audit_retention_days: u32,
@@ -219,11 +224,11 @@ pub enum AuditLevel {
 pub struct ScheduleConfig {
     /// Cron expression for scheduling
     pub schedule: String,
-    
+
     /// Only sync when on AC power
     #[serde(default = "default_true")]
     pub require_ac_power: bool,
-    
+
     /// Prevent system sleep during sync
     #[serde(default = "default_true")]
     pub prevent_sleep: bool,
@@ -235,19 +240,19 @@ pub struct NotificationConfig {
     /// Notify on sync start
     #[serde(default = "default_false")]
     pub notify_on_start: bool,
-    
+
     /// Notify on sync completion
     #[serde(default = "default_true")]
     pub notify_on_complete: bool,
-    
+
     /// Notify on errors
     #[serde(default = "default_true")]
     pub notify_on_error: bool,
-    
+
     /// Play sound on completion
     #[serde(default = "default_true")]
     pub sound_on_complete: bool,
-    
+
     /// Play sound on error
     #[serde(default = "default_true")]
     pub sound_on_error: bool,
@@ -259,56 +264,124 @@ pub struct AdvancedConfig {
     /// Snapshot format version
     #[serde(default = "default_snapshot_version")]
     pub snapshot_version: u32,
-    
+
     /// Enable experimental deduplication
     #[serde(default = "default_false")]
     pub experimental_dedup: bool,
-    
+
     /// Enable experimental delta sync
     #[serde(default = "default_false")]
     pub experimental_delta_sync: bool,
-    
+
     /// Enable debug encryption output
     #[serde(default = "default_false")]
     pub debug_encryption: bool,
-    
+
     /// Enable performance debugging
     #[serde(default = "default_false")]
     pub debug_performance: bool,
-    
+
     /// Save sync report after each operation
     #[serde(default = "default_true")]
     pub save_sync_report: bool,
+
+    /// Last sync timestamp for tracking
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_sync: Option<DateTime<Utc>>,
+
+    /// Configuration creation timestamp
+    #[serde(default = "default_creation_time")]
+    pub created_at: DateTime<Utc>,
 }
 
 // Default value functions
-fn default_false() -> bool { false }
-fn default_true() -> bool { true }
-fn default_encryption_algorithm() -> EncryptionAlgorithm { EncryptionAlgorithm::Aes256Gcm }
-fn default_key_derivation() -> KeyDerivation { KeyDerivation::Pbkdf2 }
-fn default_pbkdf2_iterations() -> u32 { 100_000 }
-fn default_retain_snapshots() -> u32 { 7 }
-fn default_retain_days() -> u32 { 30 }
-fn default_gc_interval_hours() -> u32 { 24 }
-fn default_compression_level() -> u8 { 3 }
-fn default_chunk_size_mb() -> u32 { 1 }
-fn default_parallel_files() -> u32 { 4 }
-fn default_buffer_size_kb() -> u32 { 1024 }
-fn default_key_rotation_days() -> u32 { 90 }
-fn default_audit_level() -> AuditLevel { AuditLevel::Full }
-fn default_audit_retention_days() -> u32 { 365 }
-fn default_snapshot_version() -> u32 { 1 }
 
-// Default trait implementations
-impl Default for GeneralConfig {
-    fn default() -> Self {
-        Self {
-            verbose: false,
-            log_file: None,
-            threads: 0,
-        }
-    }
+/// Default value for boolean flags that should be false
+fn default_false() -> bool {
+    false
 }
+
+/// Default value for boolean flags that should be true
+fn default_true() -> bool {
+    true
+}
+
+/// Default encryption algorithm (AES-256-GCM)
+fn default_encryption_algorithm() -> EncryptionAlgorithm {
+    EncryptionAlgorithm::Aes256Gcm
+}
+
+/// Default key derivation function (PBKDF2)
+fn default_key_derivation() -> KeyDerivation {
+    KeyDerivation::Pbkdf2
+}
+
+/// Default PBKDF2 iterations (100,000)
+fn default_pbkdf2_iterations() -> u32 {
+    100_000
+}
+
+/// Default number of snapshots to retain (7)
+fn default_retain_snapshots() -> u32 {
+    7
+}
+
+/// Default number of days to retain snapshots (30)
+fn default_retain_days() -> u32 {
+    30
+}
+
+/// Default garbage collection interval in hours (24)
+fn default_gc_interval_hours() -> u32 {
+    24
+}
+
+/// Default compression level (3, moderate compression)
+fn default_compression_level() -> u8 {
+    3
+}
+
+/// Default chunk size in megabytes (1MB)
+fn default_chunk_size_mb() -> u32 {
+    1
+}
+
+/// Default number of files to process in parallel (4)
+fn default_parallel_files() -> u32 {
+    4
+}
+
+/// Default I/O buffer size in kilobytes (1MB)
+fn default_buffer_size_kb() -> u32 {
+    1024
+}
+
+/// Default key rotation interval in days (90)
+fn default_key_rotation_days() -> u32 {
+    90
+}
+
+/// Default audit logging level (Full)
+fn default_audit_level() -> AuditLevel {
+    AuditLevel::Full
+}
+
+/// Default audit log retention in days (365)
+fn default_audit_retention_days() -> u32 {
+    365
+}
+
+/// Default snapshot format version (1)
+fn default_snapshot_version() -> u32 {
+    1
+}
+
+/// Default creation time (current time)
+fn default_creation_time() -> DateTime<Utc> {
+    Utc::now()
+}
+
+// Default trait implementations are handled by derive macros where possible
 
 impl Default for EncryptionConfig {
     fn default() -> Self {
@@ -367,6 +440,8 @@ impl Default for AdvancedConfig {
             debug_encryption: false,
             debug_performance: false,
             save_sync_report: true,
+            last_sync: None,
+            created_at: default_creation_time(),
         }
     }
 }
@@ -379,63 +454,64 @@ impl Config {
         config.validate()?;
         Ok(config)
     }
-    
+
     /// Save configuration to a file
     pub fn save(&self, path: &PathBuf) -> Result<(), ConfigError> {
         let contents = toml::to_string_pretty(self)?;
         std::fs::write(path, contents)?;
         Ok(())
     }
-    
+
     /// Validate configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
         // Ensure at least one device is configured
         if self.device.is_empty() {
             return Err(ConfigError::ValidationError(
-                "At least one device must be configured".to_string()
+                "At least one device must be configured".to_string(),
             ));
         }
-        
+
         // Validate source path exists
         if !self.source.path.exists() {
-            return Err(ConfigError::ValidationError(
-                format!("Source path does not exist: {:?}", self.source.path)
-            ));
+            return Err(ConfigError::ValidationError(format!(
+                "Source path does not exist: {:?}",
+                self.source.path
+            )));
         }
-        
+
         // Validate device IDs are unique
         let mut device_ids = std::collections::HashSet::new();
         for device in &self.device {
             if !device_ids.insert(&device.id) {
-                return Err(ConfigError::ValidationError(
-                    format!("Duplicate device ID: {}", device.id)
-                ));
+                return Err(ConfigError::ValidationError(format!(
+                    "Duplicate device ID: {}",
+                    device.id
+                )));
             }
         }
-        
+
         // Validate compression level
         if self.policy.compression_level > 9 {
             return Err(ConfigError::ValidationError(
-                "Compression level must be between 0-9".to_string()
+                "Compression level must be between 0-9".to_string(),
             ));
         }
-        
+
         // Validate chunk size
         if self.policy.chunk_size_mb == 0 {
             return Err(ConfigError::ValidationError(
-                "Chunk size must be greater than 0".to_string()
+                "Chunk size must be greater than 0".to_string(),
             ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Get default configuration path
     pub fn default_path() -> Result<PathBuf, ConfigError> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| ConfigError::ValidationError(
-                "Could not determine config directory".to_string()
-            ))?;
+        let config_dir = dirs::config_dir().ok_or_else(|| {
+            ConfigError::ValidationError("Could not determine config directory".to_string())
+        })?;
         Ok(config_dir.join("airgapsync").join("config.toml"))
     }
 }
@@ -443,8 +519,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     
+
     #[test]
     fn test_config_serialization() {
         let config = Config {
@@ -467,15 +543,15 @@ mod tests {
             notifications: NotificationConfig::default(),
             advanced: AdvancedConfig::default(),
         };
-        
+
         let toml_str = toml::to_string_pretty(&config).unwrap();
         let parsed: Config = toml::from_str(&toml_str).unwrap();
-        
+
         assert_eq!(parsed.source.path, config.source.path);
         assert_eq!(parsed.device.len(), 1);
         assert_eq!(parsed.device[0].id, "USB001");
     }
-    
+
     #[test]
     fn test_config_validation() {
         let mut config = Config {
@@ -493,10 +569,10 @@ mod tests {
             notifications: NotificationConfig::default(),
             advanced: AdvancedConfig::default(),
         };
-        
+
         // Should fail with no devices
         assert!(config.validate().is_err());
-        
+
         // Add a device
         config.device.push(DeviceConfig {
             id: "USB001".to_string(),
@@ -504,7 +580,7 @@ mod tests {
             mount_point: PathBuf::from("/Volumes/USB001"),
             encryption: EncryptionConfig::default(),
         });
-        
+
         // Should still fail with nonexistent source path
         assert!(config.validate().is_err());
     }

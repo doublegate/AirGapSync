@@ -222,15 +222,17 @@ make package           # Create distribution package
 
 ## 📋 Development Phases
 
-### ✅ Phase 1: Design & Key Management (COMPLETED)
+### ✅ Phase 1: Design & Key Management (COMPLETED - 2025-07-19)
 - [x] Project structure and documentation
 - [x] Configuration schema design with TOML/JSON validation
 - [x] macOS Keychain integration implementation
 - [x] Complete encryption architecture (AES-256-GCM, ChaCha20-Poly1305)
-- [x] RSA/ECDSA key generation and management
+- [x] RSA/ECDSA key generation and management with full prehash signing
+- [x] ECDH key agreement using P-256/P-384 curves
 - [x] SwiftUI menu-bar application foundation
 - [x] Comprehensive CLI with key management commands
 - [x] Integration tests and build system
+- [x] Full elliptic curve cryptography implementation
 
 ### 🚧 Phase 2: Sync Engine Prototype (Current)
 - [ ] Diff algorithm implementation
@@ -262,7 +264,9 @@ See [Development Roadmap](to-dos/ROADMAP.md) for detailed timeline and milestone
 
 AirGapSync is designed with security as the primary concern:
 
-- **Encryption**: AES-256-GCM or ChaCha20-Poly1305
+- **Symmetric Encryption**: AES-256-GCM or ChaCha20-Poly1305
+- **Asymmetric Cryptography**: RSA-2048/4096 with SHA-256/384, ECDSA P-256/P-384
+- **Key Agreement**: ECDH with NIST P-256/P-384 curves
 - **Key Storage**: macOS Keychain (never on removable media)
 - **Audit Trail**: Cryptographically signed, append-only logs
 - **Threat Model**: Protection against untrusted media and physical access
