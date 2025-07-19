@@ -1,0 +1,110 @@
+# AirGapSync Configuration Example
+# Copy this file to ~/.airgapsync/config.toml and modify as needed
+
+[general]
+# Enable verbose logging
+verbose = false
+
+# Log file location (optional, defaults to stdout)
+log_file = "~/.airgapsync/sync.log"
+
+# Number of worker threads (0 = auto-detect)
+threads = 0
+
+[source]
+# Source directory to sync
+path = "/Users/username/Documents"
+
+# Exclude patterns (gitignore syntax)
+exclude = [
+    "*.tmp",
+    "*.cache",
+    ".DS_Store",
+    "node_modules/",
+    ".git/",
+    "*.log"
+]
+
+# Follow symbolic links
+follow_symlinks = false
+
+# Include hidden files
+include_hidden = false
+
+[[device]]
+# Device configuration (can have multiple)
+id = "USB001"
+name = "Secure Backup USB"
+mount_point = "/Volumes/SecureUSB"
+
+# Encryption settings for this device
+[device.encryption]
+algorithm = "aes-256-gcm"  # or "chacha20-poly1305"
+key_derivation = "pbkdf2"  # or "argon2"
+iterations = 100000        # for pbkdf2
+
+[[device]]
+# Another device example
+id = "SSD001"
+name = "External SSD"
+mount_point = "/Volumes/ExternalSSD"
+
+[policy]
+# Retention settings
+retain_snapshots = 7        # Keep last N snapshots
+retain_days = 30           # Keep snapshots for N days
+gc_interval_hours = 24     # Run garbage collection every N hours
+
+# Sync behavior
+verify_after_write = true  # Verify data after writing
+compression_level = 3      # 0-9, 0=none, 9=maximum
+chunk_size_mb = 1         # Size of data chunks in MB
+
+# Performance tuning
+parallel_files = 4        # Number of files to process in parallel
+buffer_size_kb = 1024    # I/O buffer size in KB
+
+[security]
+# Key management
+key_rotation_days = 90    # Rotate keys every N days
+require_authentication = true  # Require macOS auth for operations
+
+# Audit settings
+audit_level = "full"      # "none", "basic", "full"
+audit_retention_days = 365
+
+[schedule]
+# Automatic sync schedule (cron syntax)
+# Uncomment to enable scheduled syncs
+# schedule = "0 2 * * *"  # Daily at 2 AM
+
+# Only sync when on AC power
+require_ac_power = true
+
+# Prevent system sleep during sync
+prevent_sleep = true
+
+[notifications]
+# macOS notifications
+notify_on_start = false
+notify_on_complete = true
+notify_on_error = true
+
+# Sound alerts
+sound_on_complete = true
+sound_on_error = true
+
+[advanced]
+# Advanced settings - modify with caution
+
+# Snapshot format version
+snapshot_version = 1
+
+# Enable experimental features
+experimental_dedup = false
+experimental_delta_sync = false
+
+# Debug settings
+debug_encryption = false
+debug_performance = false
+save_sync_report = true
