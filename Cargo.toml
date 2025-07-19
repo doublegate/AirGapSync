@@ -2,6 +2,87 @@
 name = "airgap-sync"
 version = "0.1.0"
 edition = "2021"
+authors = ["DoubleGate <parobek@gmail.com>"]
+license = "MIT"
+description = "Encrypted Removable-Media Sync Manager for macOS"
+repository = "https://github.com/doublegate/AirGapSync"
+keywords = ["encryption", "sync", "backup", "security", "macos"]
+categories = ["cryptography", "filesystem", "command-line-utilities"]
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+# CLI
+clap = { version = "4", features = ["derive", "cargo", "env"] }
+
+# Configuration
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonschema = "0.18"
+schemars = "0.8"
+
+# Cryptography
+ring = "0.17"
+rand = "0.8"
+zeroize = { version = "1.7", features = ["derive"] }
+base64 = "0.22"
+hex = "0.4"
+rsa = "0.9"
+pkcs8 = "0.10"
+spki = "0.7"
+sha2 = "0.10"
+rand_core = { version = "0.6", features = ["std"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Path handling
+dirs = "5.0"
+walkdir = "2.4"
+
+# Async runtime (for future use)
+tokio = { version = "1", features = ["full"], optional = true }
+
+# macOS Keychain
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "2.9"
+security-framework-sys = "2.9"
+core-foundation = "0.9"
+
+[dev-dependencies]
+tempfile = "3.10"
+proptest = "1.4"
+criterion = "0.5"
+pretty_assertions = "1.4"
+
+[features]
+default = []
+async = ["tokio"]
+
+[[bin]]
+name = "airgapsync"
+path = "src/cli/main.rs"
+
+[lib]
+name = "airgap_sync"
+path = "src/rust_core/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[dependencies.shellexpand]
+version = "3.1"

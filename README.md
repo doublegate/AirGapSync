@@ -23,17 +23,52 @@ A cross-platform macOS app (SwiftUI + Rust back-end) that automates secure synch
 
 ```bash
 # Clone the repository
-git clone https://github.com/<org>/airgap-sync.git
-cd airgap-sync
+git clone https://github.com/DoubleGate/AirGapSync.git
+cd AirGapSync
 
 # Build the project
 make build
 
-# Run a sync operation
-make run
+# Run from the build directory (development)
+./target/debug/airgapsync --help
 
-# Or use cargo directly
-cargo run --bin airgapsync -- --src ~/Documents --dest /Volumes/SecureUSB
+# Initialize configuration
+./target/debug/airgapsync init
+
+# Generate encryption keys for different algorithms
+./target/debug/airgapsync keygen USB001 --algorithm aes-256
+./target/debug/airgapsync keygen USB001 --algorithm rsa-2048
+./target/debug/airgapsync keygen USB001 --algorithm ecdsa-p256
+
+# List stored keys
+./target/debug/airgapsync keys
+
+# Rotate existing keys
+./target/debug/airgapsync rotate USB001
+
+# Encrypt/decrypt files (demonstration)
+./target/debug/airgapsync encrypt input.txt output.enc USB001
+./target/debug/airgapsync decrypt output.enc decrypted.txt USB001
+
+# Validate configuration
+./target/debug/airgapsync validate
+
+# Generate JSON schema
+./target/debug/airgapsync schema --output config-schema.json
+
+# Check system information
+./target/debug/airgapsync info
+
+# For production builds (faster, optimized)
+make release
+./target/release/airgapsync info
+
+# Install system-wide (adds to PATH)
+make install
+airgapsync --help  # Now available globally
+
+# Legacy sync command (Phase 2 implementation coming soon)
+airgapsync sync --src ~/Documents --dest /Volumes/SecureUSB
 ```
 
 ## 📦 Installation
@@ -187,11 +222,15 @@ make package           # Create distribution package
 
 ## 📋 Development Phases
 
-### ✅ Phase 1: Design & Key Management
+### ✅ Phase 1: Design & Key Management (COMPLETED)
 - [x] Project structure and documentation
-- [x] Configuration schema design
-- [ ] Keychain integration design
-- [ ] Encryption architecture
+- [x] Configuration schema design with TOML/JSON validation
+- [x] macOS Keychain integration implementation
+- [x] Complete encryption architecture (AES-256-GCM, ChaCha20-Poly1305)
+- [x] RSA/ECDSA key generation and management
+- [x] SwiftUI menu-bar application foundation
+- [x] Comprehensive CLI with key management commands
+- [x] Integration tests and build system
 
 ### 🚧 Phase 2: Sync Engine Prototype (Current)
 - [ ] Diff algorithm implementation
