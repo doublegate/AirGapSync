@@ -11,19 +11,34 @@
 compile_error!("AirGapSync currently only supports macOS");
 
 // Module declarations
+pub mod archive;
+pub mod chunk;
 pub mod config;
 pub mod crypto;
+pub mod diff;
 #[cfg(target_os = "macos")]
 pub mod keychain;
 pub mod keys;
+pub mod manifest;
 pub mod schema;
+pub mod sync;
 
 // Re-exports for convenience
+pub use archive::{Archive, ArchiveError, ArchiveStatistics, VerificationResult};
+pub use chunk::{Chunk, ChunkError, ChunkOptions, ChunkProcessor, ChunkStore};
 pub use config::{Config, ConfigError};
 pub use crypto::{Algorithm as EncryptionAlgorithm, CryptoError, CryptoKey};
+pub use diff::{
+    ChangeType, ChangeSummary, DiffEngine, DiffError, DiffOptions, FileChange, FileMetadata,
+};
 #[cfg(target_os = "macos")]
 pub use keychain::{EncryptionKey, KeychainError, KeychainManager};
 pub use keys::{AsymmetricAlgorithm, AsymmetricKey, KeyAgreement};
+pub use manifest::{FileEntry, FileType, Manifest, ManifestError};
+pub use sync::{
+    ProgressCallback, RestoreResult, SyncEngine, SyncError, SyncOptions, SyncPhase, SyncProgress,
+    SyncResult,
+};
 
 use thiserror::Error;
 
@@ -58,6 +73,22 @@ pub enum AirGapError {
     /// Sync operation error
     #[error("Sync error: {0}")]
     SyncError(String),
+
+    /// Diff error
+    #[error("Diff error: {0}")]
+    Diff(#[from] DiffError),
+
+    /// Chunk error
+    #[error("Chunk error: {0}")]
+    Chunk(#[from] ChunkError),
+
+    /// Manifest error
+    #[error("Manifest error: {0}")]
+    Manifest(#[from] ManifestError),
+
+    /// Archive error
+    #[error("Archive error: {0}")]
+    Archive(#[from] ArchiveError),
 }
 
 /// Result type alias for AirGapSync operations

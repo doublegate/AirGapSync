@@ -1,7 +1,7 @@
-//! AirGapSync CLI - Phase 1 Implementation
+//! AirGapSync CLI - Phase 2 Implementation
 //!
-//! This CLI demonstrates Phase 1 functionality including configuration
-//! management, key generation, and basic encryption operations.
+//! This CLI implements full sync functionality including file synchronization,
+//! restore, verification, and snapshot management.
 
 use airgap_sync::*;
 use anyhow::{Context, Result};
@@ -97,15 +97,91 @@ enum Commands {
     /// Show system information
     Info,
 
-    /// Legacy sync command (placeholder)
+    /// Sync files to removable media
     Sync {
         /// Source directory
-        #[clap(long)]
-        src: PathBuf,
+        #[clap(short, long)]
+        source: PathBuf,
 
-        /// Destination device or path
-        #[clap(long)]
+        /// Destination device path
+        #[clap(short, long)]
         dest: PathBuf,
+
+        /// Device ID for encryption
+        #[clap(short = 'i', long)]
+        device_id: String,
+
+        /// Dry run (don't actually sync)
+        #[clap(long)]
+        dry_run: bool,
+
+        /// Chunk size in KB (default: 1024)
+        #[clap(long)]
+        chunk_size: Option<usize>,
+
+        /// Disable compression
+        #[clap(long)]
+        no_compress: bool,
+
+        /// Disable encryption
+        #[clap(long)]
+        no_encrypt: bool,
+    },
+
+    /// Verify backup integrity
+    Verify {
+        /// Archive path
+        #[clap(short, long)]
+        archive: PathBuf,
+
+        /// Device ID
+        #[clap(short = 'i', long)]
+        device_id: String,
+
+        /// Snapshot ID (latest if not specified)
+        #[clap(short, long)]
+        snapshot: Option<String>,
+    },
+
+    /// List snapshots
+    ListSnapshots {
+        /// Archive path
+        #[clap(short, long)]
+        archive: PathBuf,
+
+        /// Device ID
+        #[clap(short = 'i', long)]
+        device_id: String,
+    },
+
+    /// Restore from backup
+    Restore {
+        /// Archive path
+        #[clap(short, long)]
+        archive: PathBuf,
+
+        /// Device ID
+        #[clap(short = 'i', long)]
+        device_id: String,
+
+        /// Snapshot ID
+        #[clap(short, long)]
+        snapshot: String,
+
+        /// Destination directory
+        #[clap(short, long)]
+        dest: PathBuf,
+    },
+
+    /// Show archive statistics
+    Stats {
+        /// Archive path
+        #[clap(short, long)]
+        archive: PathBuf,
+
+        /// Device ID
+        #[clap(short = 'i', long)]
+        device_id: String,
     },
 }
 
@@ -147,7 +223,28 @@ fn main() -> Result<()> {
         Commands::Validate { config } => cmd_validate(config),
         Commands::Schema { output } => cmd_schema(&output),
         Commands::Info => cmd_info(),
-        Commands::Sync { src, dest } => cmd_sync(&src, &dest),
+        Commands::Sync {
+            source,
+            dest,
+            device_id,
+            dry_run,
+            chunk_size,
+            no_compress,
+            no_encrypt,
+        } => cmd_sync(&source, &dest, &device_id, dry_run, chunk_size, no_compress, no_encrypt),
+        Commands::Verify {
+            archive,
+            device_id,
+            snapshot,
+        } => cmd_verify(&archive, &device_id, snapshot.as_deref()),
+        Commands::ListSnapshots { archive, device_id } => cmd_list_snapshots(&archive, &device_id),
+        Commands::Restore {
+            archive,
+            device_id,
+            snapshot,
+            dest,
+        } => cmd_restore(&archive, &device_id, &snapshot, &dest),
+        Commands::Stats { archive, device_id } => cmd_stats(&archive, &device_id),
     }
 }
 
@@ -520,13 +617,250 @@ fn cmd_info() -> Result<()> {
     Ok(())
 }
 
-fn cmd_sync(src: &Path, dest: &Path) -> Result<()> {
-    println!("Sync functionality will be implemented in Phase 2");
-    println!("  Source: {}", src.display());
+fn cmd_sync(
+    source: &Path,
+    dest: &Path,
+    device_id: &str,
+    dry_run: bool,
+    chunk_size: Option<usize>,
+    no_compress: bool,
+    no_encrypt: bool,
+) -> Result<()> {
+    use airgap_sync::sync::*;
+    use std::sync::Arc;
+
+    println!("Starting sync...");
+    println!("  Source: {}", source.display());
     println!("  Destination: {}", dest.display());
-    println!("\nAvailable operations:");
-    println!("1. Generate keys: airgapsync keygen <device-id>");
-    println!("2. Encrypt files: airgapsync encrypt <input> <output> <device-id>");
+    println!("  Device ID: {}", device_id);
+
+    if dry_run {
+        println!("  Mode: DRY RUN (no changes will be made)");
+    }
+
+    // Get encryption key from keychain
+    let encryption_key = if !no_encrypt {
+        #[cfg(target_os = "macos")]
+        {
+            use airgap_sync::keychain::*;
+            let keychain = KeychainManager::new();
+            let key_data = keychain.get_key(device_id)?;
+
+            let algorithm = match key_data.metadata.algorithm.as_str() {
+                "AES-256" => EncryptionAlgorithm::Aes256Gcm,
+                "ChaCha20" => EncryptionAlgorithm::ChaCha20Poly1305,
+                _ => anyhow::bail!("Unsupported algorithm for encryption"),
+            };
+
+            Some(CryptoKey::new(key_data.key_material.clone(), algorithm)?)
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            anyhow::bail!("Keychain integration requires macOS");
+        }
+    } else {
+        None
+    };
+
+    // Create sync options
+    let mut options = SyncOptions {
+        device_id: device_id.to_string(),
+        dry_run,
+        ..Default::default()
+    };
+
+    if let Some(size_kb) = chunk_size {
+        options.chunk_options.chunk_size = size_kb * 1024;
+    }
+
+    options.chunk_options.compress = !no_compress;
+    options.chunk_options.encrypt = !no_encrypt;
+
+    // Progress callback
+    let progress_callback: ProgressCallback = Arc::new(|progress| {
+        if let Some(ref file) = progress.current_file {
+            println!(
+                "  [{}/{}] {}",
+                progress.files_processed, progress.total_files, file.display()
+            );
+        }
+    });
+
+    // Create and run sync engine
+    let mut engine = SyncEngine::new(options);
+
+    let result = engine.sync(
+        source,
+        dest,
+        encryption_key.as_ref(),
+        Some(progress_callback),
+    )?;
+
+    println!("\n✓ Sync completed successfully");
+    println!("  Snapshot ID: {}", result.snapshot_id);
+    println!("  Files synced: {}", result.files_synced);
+    println!("  Bytes synced: {} ({:.2} MB)", result.bytes_synced, result.bytes_synced as f64 / 1_000_000.0);
+    println!("  Bytes written: {} ({:.2} MB)", result.bytes_written, result.bytes_written as f64 / 1_000_000.0);
+    println!("  Compression ratio: {:.1}%", result.compression_ratio() * 100.0);
+    println!("  Chunks created: {}", result.chunks_created);
+    println!("  Chunks deduplicated: {}", result.chunks_deduplicated);
+    println!("  Duration: {:.2}s", result.duration.as_secs_f64());
+
+    Ok(())
+}
+
+fn cmd_verify(archive: &Path, device_id: &str, snapshot_id: Option<&str>) -> Result<()> {
+    use airgap_sync::archive::*;
+
+    println!("Verifying backup integrity...");
+    println!("  Archive: {}", archive.display());
+
+    let archive = Archive::open(archive.to_path_buf(), device_id.to_string())?;
+
+    let snapshot = if let Some(id) = snapshot_id {
+        id.to_string()
+    } else {
+        archive.latest_snapshot()?
+            .ok_or_else(|| anyhow::anyhow!("No snapshots found"))?
+    };
+
+    println!("  Snapshot: {}", snapshot);
+
+    let result = archive.verify(&snapshot)?;
+
+    if result.is_valid {
+        println!("\n✓ Backup is valid");
+        println!("  Files verified: {}/{}", result.verified_files, result.total_files);
+        println!("  Chunks verified: {}/{}", result.verified_chunks, result.total_chunks);
+    } else {
+        println!("\n✗ Backup verification failed");
+        println!("  Missing chunks: {}", result.missing_chunks.len());
+        println!("  Corrupted files: {}", result.corrupted_files.len());
+
+        if !result.missing_chunks.is_empty() {
+            println!("\nMissing chunks:");
+            for chunk_id in result.missing_chunks.iter().take(10) {
+                println!("  - {}", chunk_id);
+            }
+        }
+
+        if !result.corrupted_files.is_empty() {
+            println!("\nCorrupted files:");
+            for file_path in result.corrupted_files.iter().take(10) {
+                println!("  - {}", file_path.display());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_list_snapshots(archive: &Path, device_id: &str) -> Result<()> {
+    use airgap_sync::archive::*;
+
+    let archive = Archive::open(archive.to_path_buf(), device_id.to_string())?;
+    let snapshots = archive.list_snapshots()?;
+
+    if snapshots.is_empty() {
+        println!("No snapshots found");
+        return Ok(());
+    }
+
+    println!("Snapshots for device {}:", device_id);
+    println!("{:<20} {:<10} {:<20}", "Snapshot ID", "Files", "Created");
+    println!("{}", "-".repeat(60));
+
+    for snapshot_id in &snapshots {
+        if let Ok(manifest) = archive.load_manifest(snapshot_id) {
+            println!(
+                "{:<20} {:<10} {:<20}",
+                &snapshot_id[..16],
+                manifest.file_count,
+                manifest.created_at.format("%Y-%m-%d %H:%M:%S")
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_restore(archive: &Path, device_id: &str, snapshot_id: &str, dest: &Path) -> Result<()> {
+    use airgap_sync::sync::*;
+    use std::sync::Arc;
+
+    println!("Restoring from backup...");
+    println!("  Archive: {}", archive.display());
+    println!("  Snapshot: {}", snapshot_id);
+    println!("  Destination: {}", dest.display());
+
+    // Get encryption key from keychain
+    #[cfg(target_os = "macos")]
+    let encryption_key = {
+        use airgap_sync::keychain::*;
+        let keychain = KeychainManager::new();
+        let key_data = keychain.get_key(device_id)?;
+
+        let algorithm = match key_data.metadata.algorithm.as_str() {
+            "AES-256" => EncryptionAlgorithm::Aes256Gcm,
+            "ChaCha20" => EncryptionAlgorithm::ChaCha20Poly1305,
+            _ => anyhow::bail!("Unsupported algorithm for decryption"),
+        };
+
+        Some(CryptoKey::new(key_data.key_material.clone(), algorithm)?)
+    };
+
+    #[cfg(not(target_os = "macos"))]
+    let encryption_key: Option<CryptoKey> = None;
+
+    // Progress callback
+    let progress_callback: ProgressCallback = Arc::new(|progress| {
+        if let Some(ref file) = progress.current_file {
+            println!(
+                "  [{}/{}] {}",
+                progress.files_processed, progress.total_files, file.display()
+            );
+        }
+    });
+
+    // Create sync engine and restore
+    let options = SyncOptions {
+        device_id: device_id.to_string(),
+        ..Default::default()
+    };
+
+    let mut engine = SyncEngine::new(options);
+
+    let result = engine.restore(
+        archive,
+        snapshot_id,
+        dest,
+        encryption_key.as_ref(),
+        Some(progress_callback),
+    )?;
+
+    println!("\n✓ Restore completed successfully");
+    println!("  Files restored: {}", result.files_restored);
+    println!("  Bytes restored: {} ({:.2} MB)", result.bytes_restored, result.bytes_restored as f64 / 1_000_000.0);
+    println!("  Duration: {:.2}s", result.duration.as_secs_f64());
+
+    Ok(())
+}
+
+fn cmd_stats(archive: &Path, device_id: &str) -> Result<()> {
+    use airgap_sync::archive::*;
+
+    let archive = Archive::open(archive.to_path_buf(), device_id.to_string())?;
+    let stats = archive.statistics()?;
+
+    println!("Archive Statistics:");
+    println!("  Snapshots: {}", stats.snapshot_count);
+    println!("  Total files: {}", stats.total_files);
+    println!("  Total bytes: {} ({:.2} GB)", stats.total_bytes, stats.total_bytes as f64 / 1_000_000_000.0);
+    println!("  Compressed bytes: {} ({:.2} GB)", stats.compressed_bytes, stats.compressed_bytes as f64 / 1_000_000_000.0);
+    println!("  Total chunks: {}", stats.total_chunks);
+    println!("  Compression ratio: {:.1}%", stats.compression_ratio() * 100.0);
+    println!("  Average snapshot size: {:.2} MB", stats.avg_snapshot_size() as f64 / 1_000_000.0);
 
     Ok(())
 }
