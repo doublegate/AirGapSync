@@ -101,3 +101,6 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/.github/workflows/
+
+# GitHub workflows (cannot be pushed via GitHub App)
+.github/workflows/*.yml
