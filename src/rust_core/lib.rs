@@ -4,26 +4,41 @@
 //! to removable media with encryption and air-gap security principles.
 
 #![warn(missing_docs)]
-#![deny(unsafe_code)]
+// Note: unsafe code is required for FFI (Foreign Function Interface)
+// #![deny(unsafe_code)]
 
 // Feature gates
-#[cfg(not(target_os = "macos"))]
-compile_error!("AirGapSync currently only supports macOS");
+// Note: macOS is required for full Keychain functionality in production
+// #[cfg(not(target_os = "macos"))]
+// compile_error!("AirGapSync currently only supports macOS");
 
 // Module declarations
+pub mod audit;
+pub mod chunk;
 pub mod config;
 pub mod crypto;
+pub mod diff;
+pub mod ffi;
 #[cfg(target_os = "macos")]
 pub mod keychain;
 pub mod keys;
+pub mod metadata;
 pub mod schema;
+pub mod storage;
+pub mod sync;
 
 // Re-exports for convenience
+pub use audit::{AuditEntry, AuditEventType, AuditLogger, Severity};
+pub use chunk::{ChunkInfo, Chunker};
 pub use config::{Config, ConfigError};
 pub use crypto::{Algorithm as EncryptionAlgorithm, CryptoError, CryptoKey};
+pub use diff::{Change, ChangeSet, ChangeType, DiffEngine};
 #[cfg(target_os = "macos")]
 pub use keychain::{EncryptionKey, KeychainError, KeychainManager};
 pub use keys::{AsymmetricAlgorithm, AsymmetricKey, KeyAgreement};
+pub use metadata::{FileMetadata, FileType, Manifest};
+pub use storage::{StorageBackend, StorageConfig};
+pub use sync::{SyncConfig, SyncEngine, SyncMode, SyncProgress, SyncResult};
 
 use thiserror::Error;
 
@@ -81,15 +96,8 @@ pub fn initialize() -> Result<()> {
 
     log::info!("Initializing AirGapSync v{VERSION}");
 
-    // Verify we're on macOS
-    #[cfg(not(target_os = "macos"))]
-    {
-        return Err(AirGapError::SyncError(
-            "AirGapSync requires macOS for Keychain integration".to_string(),
-        ));
-    }
-
     // Check for required system capabilities
+    #[cfg(target_os = "macos")]
     verify_system_requirements()?;
 
     log::info!("AirGapSync initialized successfully");

@@ -52,6 +52,12 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5.0"
 walkdir = "2.4"
 
+# Compression
+flate2 = "1.0"
+
+# System info
+whoami = "1.5"
+
 # Async runtime (for future use)
 tokio = { version = "1", features = ["full"], optional = true }
 
