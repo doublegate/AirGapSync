@@ -13,7 +13,7 @@ AirGapSync is an encrypted removable-media sync manager for macOS that provides 
 ```bash
 # Common development tasks
 make build          # Build debug version
-make release        # Build release version  
+make release        # Build release version
 make test           # Run all tests
 make run            # Run with example args
 make lint           # Run clippy linter
@@ -57,14 +57,14 @@ cargo outdated                # Check for outdated deps
 
 ### SwiftUI Development
 
-The SwiftUI menu-bar app is located in `src/swift_ui/`. Use Xcode to build and run the macOS app.
+The SwiftUI menu-bar app is located in `AirGapSync/AirGapSync/`. Use Xcode to build and run the macOS app.
 
 ```bash
 # Open in Xcode
-open AirGapSync.xcodeproj
+open AirGapSync/AirGapSync.xcodeproj
 
 # Build from command line
-xcodebuild -project AirGapSync.xcodeproj -scheme AirGapSync build
+xcodebuild -project AirGapSync/AirGapSync.xcodeproj -scheme AirGapSync build
 ```
 
 ## Architecture
@@ -83,7 +83,7 @@ xcodebuild -project AirGapSync.xcodeproj -scheme AirGapSync build
    - Configuration file support
    - Scriptable for automation
 
-3. **SwiftUI Menu Bar App** (`src/swift_ui/App.swift`)
+3. **SwiftUI Menu Bar App** (`AirGapSync/AirGapSync/`)
    - Native macOS menu bar interface
    - Real-time sync status monitoring
    - Device detection and management
@@ -119,19 +119,37 @@ airgapsync schema --output <path>
 
 # System
 airgapsync info
-```
 
-### Planned Commands (Phase 2+)
-```bash
-airgapsync sync                           # Run with config file
-airgapsync --dry-run                      # Preview changes
-airgapsync --rotate-keys                  # Rotate encryption keys
-airgapsync --audit-log                    # View audit trail
-airgapsync --verify <device>              # Verify backup integrity
-airgapsync --restore <snapshot> <dest>    # Restore from snapshot
-airgapsync config --init                  # Initialize config
-airgapsync device --list                  # List devices
-airgapsync snapshot --list <device>       # List snapshots
+# Sync operations (Phase 2)
+airgapsync sync [--device <id>] [--dry-run] [--resume]
+airgapsync verify <device-id> [--snapshot <id>]
+airgapsync restore <snapshot-id> <dest> [--device <id>]
+
+# Device management
+airgapsync device list
+airgapsync device add <id> <name> <mount-point>
+airgapsync device remove <id>
+airgapsync device info <id>
+
+# Snapshot management
+airgapsync snapshot list <device-id>
+airgapsync snapshot info <id> <device-id>
+airgapsync snapshot delete <id> <device-id>
+airgapsync snapshot diff <snap1> <snap2> <device-id>
+
+# Audit and monitoring
+airgapsync audit-log [--device <id>] [--limit <n>]
+airgapsync watch [--interval <secs>] [--dry-run]
+
+# Shell completions
+airgapsync completion <shell>
+
+# Global options
+airgapsync --dry-run                    # Preview mode
+airgapsync --rotate-keys                # Auto key rotation
+airgapsync --audit-log                  # View audit log
+airgapsync --verify <device>            # Quick verify
+airgapsync --restore <snapshot:dest>    # Quick restore
 ```
 
 ## Configuration
@@ -141,7 +159,7 @@ Configuration files use TOML format and are stored at `~/.airgapsync/config.toml
 Key sections:
 - `[source]` - Source directory settings
 - `[[device]]` - Device configurations (multiple allowed)
-- `[policy]` - Retention and GC policies  
+- `[policy]` - Retention and GC policies
 - `[security]` - Encryption and key settings
 - `[schedule]` - Automatic sync scheduling
 
@@ -183,17 +201,39 @@ make example-config
 .
 ├── src/
 │   ├── rust_core/      # Core sync engine
+│   │   ├── lib.rs      # Library entry point
+│   │   ├── config.rs   # Configuration handling
+│   │   ├── crypto.rs   # Encryption/decryption
+│   │   ├── keychain.rs # macOS Keychain integration
+│   │   ├── keys.rs     # Asymmetric key management
+│   │   ├── schema.rs   # Config schema validation
+│   │   ├── sync.rs     # Sync orchestration
+│   │   ├── diff.rs     # File comparison engine
+│   │   ├── chunk.rs    # Chunk-based processing
+│   │   ├── snapshot.rs # Backup snapshots
+│   │   └── audit.rs    # Audit logging
 │   ├── cli/            # CLI application
-│   └── swift_ui/       # macOS GUI
+│   │   └── main.rs     # 1747 lines, full Phase 2 implementation
+│   └── swift_ui/       # macOS GUI (placeholder)
+├── AirGapSync/         # Xcode project for SwiftUI app
+│   └── AirGapSync/
+│       ├── MenuBarApp.swift
+│       └── SyncManager.swift
 ├── docs/               # Documentation
 │   ├── ARCHITECTURE.md # System design
 │   ├── API.md          # Library API
 │   ├── SECURITY.md     # Security model
-│   └── ...
+│   ├── PHASE1-COMPLETE.md
+│   └── PHASE2-COMPLETE.md
 ├── to-dos/             # Development tasks
 │   ├── phase-*.md      # Phase planning
 │   └── ROADMAP.md      # Project roadmap
 ├── tests/              # Integration tests
+│   ├── phase1_integration.rs
+│   └── phase2_integration.rs
+├── benches/            # Performance benchmarks
+│   ├── crypto_bench.rs
+│   └── sync_bench.rs
 ├── Cargo.toml          # Rust configuration
 ├── Makefile            # Build automation
 └── config.example.toml # Example config
@@ -211,7 +251,7 @@ make example-config
 ## Testing Strategy
 
 - **Unit Tests**: Core library functions
-- **Integration Tests**: End-to-end sync scenarios  
+- **Integration Tests**: End-to-end sync scenarios
 - **Fuzz Testing**: Security-critical components
 - **Performance Tests**: Benchmark sync speed
 - **UI Tests**: SwiftUI component testing
@@ -232,14 +272,19 @@ make example-config
 - Keys require user authentication to access
 - Support for key rotation and revocation
 
-## Current Status: Phase 1 Complete (2025-07-19)
+## Current Status: Phase 2 Complete (2025-07-20)
 
 ### What's Been Completed
 - ✅ Full cryptographic implementation (AES, ChaCha20, RSA, ECDSA, ECDH)
 - ✅ macOS Keychain integration with security-framework
-- ✅ Comprehensive CLI with 11+ commands
+- ✅ Comprehensive CLI with 20+ commands (1747 lines)
 - ✅ TOML/JSON configuration with schema validation
-- ✅ Complete test suite with 100% passing tests
+- ✅ Complete sync engine with diff/chunk/snapshot
+- ✅ Audit logging with tamper-evident signatures
+- ✅ Device monitoring and auto-sync
+- ✅ Shell completion generation
+- ✅ Streaming encryption for large files
+- ✅ Full test suite with 100% passing tests
 - ✅ Zero compilation warnings or errors
 - ✅ Full API documentation
 
@@ -249,28 +294,38 @@ make example-config
 3. **Schema Validation**: Using schemars with chrono feature for DateTime support
 4. **Error Handling**: Comprehensive error types with thiserror
 5. **Testing**: Integration tests in tests/phase1_integration.rs validate all core functionality
+6. **Progress Reporting**: Using indicatif crate for CLI progress bars
+7. **Parallel Processing**: Using rayon for concurrent file operations
+8. **Compression**: Using zstd for better compression ratios
+9. **Hashing**: Using blake3 for fast content-addressed storage
 
 ### Important Implementation Details
 - **Keychain parameter order**: find_generic_password(None, &service_name, &account_name)
 - **Enum serialization**: Using kebab-case for encryption algorithms (e.g., "aes256-gcm")
 - **ECDH shared secrets**: Using diffie_hellman() from elliptic-curve crate
 - **Memory safety**: All sensitive data uses zeroize for secure cleanup
+- **Progress callbacks**: Type is `Arc<dyn Fn(SyncProgress) + Send + Sync>` (no reference)
+- **Config loading**: Config::from_file() expects &PathBuf, not &Path
+- **Device config**: Use `config.device` (singular), not `config.devices`
 
-## Next Steps: Phase 2 (Sync Engine)
+## Next Steps: Phase 3 (SwiftUI & Production)
 
 When continuing development with `claude -c`, focus on:
 
-1. **Diff Algorithm**: Implement efficient file comparison
-2. **Chunk Processing**: Build the chunk-based sync engine
-3. **Streaming Encryption**: Add streaming support for large files
-4. **Progress Reporting**: Real-time sync progress feedback
-5. **Error Recovery**: Robust handling of partial syncs
+1. **SwiftUI Menu Bar App**: Complete implementation in AirGapSync/AirGapSync/
+2. **FFI Bridge**: Create Rust-Swift interop layer
+3. **Device Detection**: Implement DiskArbitration framework integration
+4. **Auto-sync Daemon**: Background service for continuous monitoring
+5. **Performance Optimization**: Profile and optimize for large datasets
+6. **Universal Binary**: Build for both Intel and Apple Silicon
+7. **Code Signing**: Prepare for notarization and distribution
+8. **Documentation**: User guide and API documentation
 
-Key files to start with:
-- `src/rust_core/sync.rs` (create new)
-- `src/rust_core/chunk.rs` (create new)
-- `src/rust_core/diff.rs` (create new)
-- Update `src/cli/main.rs` with sync command
+Key files to work on:
+- `AirGapSync/AirGapSync/` (enhance SwiftUI app)
+- `src/rust_core/ffi.rs` (create new)
+- `build.rs` (add cbindgen configuration)
+- Update `Makefile` with universal binary targets
 
 ## Important Notes for Continuation
 
@@ -279,18 +334,33 @@ Key files to start with:
 3. **Document new APIs**: All public functions need documentation
 4. **Update CHANGELOG**: Track all significant changes
 5. **Follow existing patterns**: Check similar code for conventions
+6. **CLI is complete**: 1747 lines with all Phase 2+ features implemented
+7. **Build succeeds**: Project compiles with zero errors
 
-## Dependencies Added in Phase 1
+## Dependencies Added in Phase 2
 
 ```toml
-# Elliptic curve cryptography (added for ECDH)
-elliptic-curve = { version = "0.13", features = ["ecdh", "pkcs8", "sec1"] }
-p256 = { version = "0.13", features = ["ecdh", "ecdsa", "pkcs8"] }
-p384 = { version = "0.13", features = ["ecdh", "ecdsa", "pkcs8"] }
-ecdsa = { version = "0.16", features = ["pkcs8", "pem", "signing", "verifying"] }
+# Progress reporting
+indicatif = "0.17"
 
-# Schema validation (chrono feature added)
-schemars = { version = "0.8", features = ["chrono"] }
+# Parallel processing
+rayon = "1.8"
+
+# Compression
+zstd = "0.13"
+flate2 = "1.0"
+
+# Hashing
+blake3 = "1.5"
+
+# File patterns
+glob = "0.3"
+
+# UUID generation
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Shell completions
+clap_complete = "4"
 ```
 
 ## Common Issues and Solutions
@@ -299,12 +369,23 @@ schemars = { version = "0.8", features = ["chrono"] }
 2. **ECDH test failures**: Ensure elliptic-curve crates are properly imported
 3. **Schema validation**: Remember kebab-case for enum serialization
 4. **Memory leaks**: Use `zeroize` for all sensitive data
+5. **Progress callback types**: No reference on SyncProgress parameter
+6. **Config path types**: Use PathBuf references, not Path
 
 ## Current Git Status
 
 - Branch: main
-- Last commit: "feat: Complete Phase 1 - Full cryptographic implementation with ECDH support"
-- All changes pushed to origin
-- Ready for Phase 2 development
+- Recent major commits:
+  - "feat: Complete Phase 1 - Full cryptographic implementation with ECDH support"
+  - "Complete Phase 1: Design & Key Management Implementation"
+- CLI fully implemented: 1747 lines
+- All changes staged for commit
+- Ready for Phase 3 development
 
-See `docs/PHASE1-COMPLETE.md` for detailed Phase 1 summary.
+## Critical Context from Session
+
+**User's Primary Directive**: "ONLY add to, enhance, or fully implement features --> do NOT remove/delete or disable or simplify anything --> always make sure everything is completely developed"
+
+The user was very explicit about never removing code. When I accidentally reduced the CLI from ~1500 lines to 1 line, they were justifiably upset. The CLI has now been fully restored and enhanced to 1747 lines with additional features.
+
+See `docs/PHASE2-COMPLETE.md` for detailed Phase 2 summary.

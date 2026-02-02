@@ -1,0 +1,38 @@
+# cbindgen configuration for AirGapSync FFI
+language = "C"
+cpp_compat = true
+
+[export]
+# Only export items from the ffi module
+include = ["FFIErrorCode", "FFIResult", "FFISyncOptions", "FFISyncResult", "FFIDeviceInfo"]
+prefix = "airgap_"
+
+[parse]
+parse_deps = false
+include = ["airgap-sync"]
+
+[layout]
+aligned_n = "ALIGN_N"
+
+[defines]
+# Add any compile-time defines here
+
+[fn]
+args = "horizontal"
+rename_args = "None"
+must_use = "None"
+
+[struct]
+derive_eq = false
+derive_neq = false
+associated_constants_in_body = false
+
+[enum]
+rename_variants = "None"
+prefix_with_name = false
+
+[const]
+allow_static_const = false
+
+[macro_expansion]
+bitflags = false

@@ -4,7 +4,7 @@
 //! to removable media with encryption and air-gap security principles.
 
 #![warn(missing_docs)]
-#![deny(unsafe_code)]
+// Note: unsafe code is allowed in the ffi module for C interop
 
 // Feature gates
 #[cfg(not(target_os = "macos"))]
@@ -17,6 +17,12 @@ pub mod crypto;
 pub mod keychain;
 pub mod keys;
 pub mod schema;
+pub mod sync;
+pub mod diff;
+pub mod chunk;
+pub mod snapshot;
+pub mod audit;
+pub mod ffi;
 
 // Re-exports for convenience
 pub use config::{Config, ConfigError};
@@ -24,6 +30,19 @@ pub use crypto::{Algorithm as EncryptionAlgorithm, CryptoError, CryptoKey};
 #[cfg(target_os = "macos")]
 pub use keychain::{EncryptionKey, KeychainError, KeychainManager};
 pub use keys::{AsymmetricAlgorithm, AsymmetricKey, KeyAgreement};
+pub use sync::{SyncEngine, SyncOptions, SyncResult, SyncBuilder, SyncProgress};
+pub use diff::{DiffEngine, FileChange, FileMetadata, DiffStats};
+pub use chunk::{Chunk, ChunkProcessor, ChunkMetadata};
+pub use snapshot::{Snapshot, SnapshotManager, SnapshotMetadata};
+pub use audit::{AuditLogger, AuditEvent, AuditEntry};
+pub use ffi::{
+    FFIErrorCode, FFIResult, FFISyncOptions, FFISyncResult, FFIDeviceInfo,
+    airgap_initialize, airgap_get_version, airgap_load_config, airgap_free_config,
+    airgap_create_engine, airgap_free_engine, airgap_sync, airgap_get_device_info,
+    airgap_free_device_info, airgap_verify_snapshot, airgap_get_snapshot_info,
+    airgap_list_snapshots, airgap_free_snapshot_list, airgap_free_string,
+    airgap_free_sync_result, airgap_free_result,
+};
 
 use thiserror::Error;
 

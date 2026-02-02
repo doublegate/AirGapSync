@@ -140,6 +140,11 @@ impl CryptoKey {
     pub fn key_len(&self) -> usize {
         self.key.len()
     }
+
+    /// Get the key material as bytes
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.key
+    }
 }
 
 impl Drop for CryptoKey {
@@ -292,6 +297,96 @@ pub fn secure_compare(a: &[u8], b: &[u8]) -> bool {
         result |= a_byte ^ b_byte;
     }
     result == 0
+}
+
+/// Sign a message using HMAC for symmetric key algorithms
+pub fn sign_message(key: &CryptoKey, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    use ring::hmac;
+    
+    match key.algorithm {
+        Algorithm::Aes256Gcm | Algorithm::ChaCha20Poly1305 => {
+            let signing_key = hmac::Key::new(hmac::HMAC_SHA256, &key.key);
+            let signature = hmac::sign(&signing_key, message);
+            Ok(signature.as_ref().to_vec())
+        }
+    }
+}
+
+/// Verify a message signature using HMAC for symmetric key algorithms
+pub fn verify_signature(key: &CryptoKey, message: &[u8], signature: &[u8]) -> Result<bool, CryptoError> {
+    use ring::hmac;
+    
+    match key.algorithm {
+        Algorithm::Aes256Gcm | Algorithm::ChaCha20Poly1305 => {
+            let verification_key = hmac::Key::new(hmac::HMAC_SHA256, &key.key);
+            match hmac::verify(&verification_key, message, signature) {
+                Ok(()) => Ok(true),
+                Err(_) => Ok(false),
+            }
+        }
+    }
+}
+
+/// Streaming encryption context for large files
+pub struct StreamingEncryptor {
+    key: CryptoKey,
+    nonce: Vec<u8>,
+    buffer_size: usize,
+}
+
+impl StreamingEncryptor {
+    /// Create a new streaming encryptor
+    pub fn new(key: CryptoKey, buffer_size: usize) -> Result<Self, CryptoError> {
+        let nonce_gen = NonceGenerator::new();
+        let nonce = nonce_gen.generate(key.algorithm.nonce_size())?;
+        
+        Ok(Self {
+            key,
+            nonce,
+            buffer_size,
+        })
+    }
+    
+    /// Get the nonce for this encryption session
+    pub fn nonce(&self) -> &[u8] {
+        &self.nonce
+    }
+    
+    /// Encrypt a chunk of data
+    pub fn encrypt_chunk(&self, chunk: &[u8], chunk_index: u64) -> Result<Vec<u8>, CryptoError> {
+        // Create chunk-specific additional data
+        let mut aad = vec![0u8; 8];
+        aad.copy_from_slice(&chunk_index.to_le_bytes());
+        
+        // Encrypt the chunk with its index as AAD
+        encrypt(&self.key, chunk, &aad)
+    }
+}
+
+/// Streaming decryption context for large files
+pub struct StreamingDecryptor {
+    key: CryptoKey,
+    buffer_size: usize,
+}
+
+impl StreamingDecryptor {
+    /// Create a new streaming decryptor
+    pub fn new(key: CryptoKey, buffer_size: usize) -> Self {
+        Self {
+            key,
+            buffer_size,
+        }
+    }
+    
+    /// Decrypt a chunk of data
+    pub fn decrypt_chunk(&self, encrypted_chunk: &[u8], chunk_index: u64) -> Result<Vec<u8>, CryptoError> {
+        // Create chunk-specific additional data
+        let mut aad = vec![0u8; 8];
+        aad.copy_from_slice(&chunk_index.to_le_bytes());
+        
+        // Decrypt the chunk with its index as AAD
+        decrypt(&self.key, encrypted_chunk, &aad)
+    }
 }
 
 #[cfg(test)]
