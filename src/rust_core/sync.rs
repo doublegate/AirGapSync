@@ -3,7 +3,8 @@
 //! This module provides the main synchronization functionality, coordinating
 //! between diff detection, chunking, encryption, and transfer to removable media.
 
-use crate::config::{Config, DeviceConfig};
+use crate::config::{Config, DeviceConfig, NotificationConfig, AdvancedConfig,
+                    GeneralConfig, SourceConfig, PolicyConfig, SecurityConfig};
 use crate::crypto::{Algorithm, CryptoKey};
 use crate::diff::{DiffEngine, FileChange};
 use crate::chunk::{ChunkProcessor};
